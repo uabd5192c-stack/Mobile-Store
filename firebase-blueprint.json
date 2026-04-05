@@ -1,0 +1,97 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User's personal information and settings",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "displayName": { "type": "string", "description": "User's full name" },
+        "email": { "type": "string", "format": "email", "description": "User's email address" },
+        "photoURL": { "type": "string", "format": "uri", "description": "User's profile picture URL" },
+        "phoneNumber": { "type": "string", "description": "User's phone number" },
+        "address": { "type": "string", "description": "User's shipping address" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Account creation timestamp" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "A purchase order placed by a user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Order ID" },
+        "userId": { "type": "string", "description": "UID of the user who placed the order" },
+        "date": { "type": "string", "format": "date-time", "description": "Order date" },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "quantity": { "type": "number" },
+              "price": { "type": "number" }
+            }
+          }
+        },
+        "total": { "type": "number", "description": "Total order amount" },
+        "status": { "type": "string", "enum": ["Pending", "Processing", "Shipped", "Delivered", "Cancelled"] },
+        "paymentMethod": { "type": "string", "enum": ["COD", "Bank Transfer", "EasyPaisa", "JazzCash"] },
+        "shipping": {
+          "type": "object",
+          "properties": {
+            "method": { "type": "string" },
+            "price": { "type": "number" },
+            "estimatedDays": { "type": "string" }
+          }
+        }
+      },
+      "required": ["id", "userId", "date", "items", "total", "status"]
+    },
+    "WishlistItem": {
+      "title": "Wishlist Item",
+      "description": "A product saved to a user's wishlist",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "UID of the user" },
+        "productId": { "type": "string", "description": "ID of the product" },
+        "addedAt": { "type": "string", "format": "date-time", "description": "When the item was added" }
+      },
+      "required": ["userId", "productId", "addedAt"]
+    },
+    "Review": {
+      "title": "Product Review",
+      "description": "User review and rating for a product",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "productId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userPhoto": { "type": "string" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["productId", "userId", "rating", "comment", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Customer orders"
+    },
+    "/users/{userId}/wishlist/{productId}": {
+      "schema": "WishlistItem",
+      "description": "User's personal wishlist"
+    },
+    "/reviews/{reviewId}": {
+      "schema": "Review",
+      "description": "Product reviews"
+    }
+  }
+}

@@ -1,0 +1,138 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: userId (Auth UID)
+// Fields:
+//   - uid: string (required) - Firebase Auth UID
+//   - displayName: string (optional) - User's full name
+//   - email: string (required, email format) - User's email
+//   - photoURL: string (optional, url format) - Profile picture
+//   - phoneNumber: string (optional) - Contact number
+//   - address: string (optional) - Shipping address
+//   - createdAt: string (optional, date-time) - Account creation date
+//
+// Collection: orders
+// Document ID: auto-generated
+// Fields:
+//   - id: string (required) - Order ID
+//   - userId: string (required) - UID of the buyer
+//   - date: string (required, date-time) - Order date
+//   - items: list (required) - Array of items
+//   - total: number (required, positive) - Total amount
+//   - status: string (required, enum) - Order status
+//   - paymentMethod: string (required, enum) - Payment method
+//   - shipping: map (optional) - Shipping details
+//
+// Collection: users/{userId}/wishlist
+// Document ID: productId
+// Fields:
+//   - userId: string (required) - UID of the user
+//   - productId: string (required) - ID of the product
+//   - addedAt: string (required, date-time) - When added
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "uabd5192c@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.uid is string && data.uid.size() > 0 &&
+             data.email is string && isValidEmail(data.email) &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 100)) &&
+             (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() < 20)) &&
+             (!('address' in data) || (data.address is string && data.address.size() < 500));
+    }
+
+    function isValidOrder(data) {
+      return data.id is string &&
+             data.userId is string &&
+             data.date is string &&
+             data.items is list &&
+             data.total is number && data.total >= 0 &&
+             data.status in ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'] &&
+             data.paymentMethod in ['COD', 'Bank Transfer', 'EasyPaisa', 'JazzCash'];
+    }
+
+    function isValidWishlistItem(data) {
+      return data.userId is string &&
+             data.productId is string &&
+             data.addedAt is string;
+    }
+
+    function isValidReview(data) {
+      return data.productId is string &&
+             data.userId is string &&
+             data.rating is number && data.rating >= 1 && data.rating <= 5 &&
+             data.comment is string && data.comment.size() < 1000;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid && isValidReview(request.resource.data);
+      allow update: if isOwner(resource.data.userId) && isValidReview(request.resource.data);
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && !('role' in request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && 
+                    (!('role' in request.resource.data) || request.resource.data.role == resource.data.role);
+      allow delete: if isAdmin();
+
+      match /wishlist/{productId} {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId) && isValidWishlistItem(request.resource.data);
+      }
+    }
+
+    match /orders/{orderId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid && isValidOrder(request.resource.data);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}
